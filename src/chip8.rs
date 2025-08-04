@@ -13,9 +13,9 @@ const RAM_SIZE: usize = 4096;
 
 // CHIP-8 programs start at address 0x200 (512 in decimal)
 const PC_START: u16 = 512;
-const LOW_4_BITS_MASK: u16 = 0b0000_0000_0000_1111;
-const LOW_8_BITS_MASK: u16 = 0b0000_0000_1111_1111;
-const LOW_12_BITS_MASK: u16 = 0b0000_1111_1111_1111;
+const LOW_4_BITS_MASK: u16 = 0x000F;
+const LOW_8_BITS_MASK: u16 = 0x00FF;
+const LOW_12_BITS_MASK: u16 = 0x0FFF;
 
 pub struct Emulator {
     key_event_rx: mpsc::Receiver<KeyEvent>,
@@ -74,6 +74,13 @@ impl Emulator {
             delay_timer: 60,
             sound_timer: 60,
         };
+    }
+
+    pub fn load_rom(&mut self, rom: Vec<u8>) {
+        for (idx, instruction) in rom.iter().enumerate() {
+            let pc: usize = PC_START as usize + idx;
+            self.memory[pc] = *instruction;
+        }
     }
 
     pub fn run(&mut self) {
@@ -160,11 +167,10 @@ impl Emulator {
         // An instruction is two bytes, read two successive bytes from memory
         // and combine them into one 16-bit instruction.
         let mut inst: u16 = 0;
-        let idx: usize = self.pc.into();
 
-        inst |= self.memory[idx] as u16;
+        inst |= self.memory[self.pc as usize] as u16;
         inst = inst << 8;
-        inst |= self.memory[idx + 1] as u16;
+        inst |= self.memory[(self.pc + 1) as usize] as u16;
 
         self.pc += 2;
 
@@ -184,76 +190,29 @@ impl Emulator {
         // The fourth nibble. A 4-bit number.
         let n: u16 = instruction & LOW_4_BITS_MASK;
 
+        let nibbles = (first_nibble, x, y, n);
+
         // The second byte (third and fourth nibbles). An 8-bit immediate number.
         let nn: u16 = instruction & LOW_8_BITS_MASK;
 
         // The second, third and fourth nibbles. A 12-bit immediate memory address.
         let nnn: u16 = instruction & LOW_12_BITS_MASK;
 
-        match first_nibble {
-            0 => self.exec_clear_screen(),
-
-            1 => self.exec_jump(nnn),
-
-            2 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            3 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            4 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            5 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            6 => self.exec_set_reg(x, nn),
-
-            7 => self.exec_add_val_to_reg(x, nn),
-
-            8 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            9 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            // 0xA
-            10 => self.exec_set_index_reg(nnn),
-
-            // 0xB
-            11 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            // 0xC
-            12 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            // 0xD
-            13 => self.exec_draw(x, y, n),
-
-            // 0xE
-            14 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
-            // 0xF
-            15 => {
-                eprint!("unimplemented instruction: {}", first_nibble)
-            }
-
+        match nibbles {
+            (0x0, 0x0, 0xE, 0x0) => self.exec_00e0(),
+            (0x1, _, _, _) => self.exec_1nnn(nnn),
+            (0x6, _, _, _) => self.exec_6xnn(x, nn),
+            (0x7, _, _, _) => self.exec_7xnn(x, nn),
+            (0xA, _, _, _) => self.exec_annn(nnn),
+            (0xD, _, _, _) => self.exec_dxyn(x, y, n),
             _ => eprint!("unknown instruction: {}", first_nibble),
         }
     }
+}
 
-    fn exec_clear_screen(&mut self) {
+impl Emulator {
+    // clear screen
+    fn exec_00e0(&mut self) {
         let mut locked_buffer = self.pixel_buffer.as_ref().lock().unwrap();
         let frame = locked_buffer.frame_mut();
         for pixel in frame.chunks_exact_mut(4) {
@@ -266,15 +225,92 @@ impl Emulator {
         self.should_draw = true
     }
 
-    fn exec_jump(&mut self, to: u16) {}
+    // jump, set program counter to nnn
+    fn exec_1nnn(&mut self, nnn: u16) {
+        self.pc = nnn;
+    }
 
-    fn exec_set_reg(&mut self, reg: u16, val: u16) {}
+    // set vx reg to nn
+    fn exec_6xnn(&mut self, x: u16, nn: u16) {
+        self.var_registers[x as usize] = nn as u8;
+    }
 
-    fn exec_add_val_to_reg(&mut self, reg: u16, val: u16) {}
+    // add value nn to vx reg
+    fn exec_7xnn(&mut self, x: u16, nn: u16) {
+        self.var_registers[x as usize] += nn as u8;
+    }
 
-    fn exec_set_index_reg(&mut self, val: u16) {}
+    // set index register to nnn
+    fn exec_annn(&mut self, nnn: u16) {
+        self.index_register = nnn;
+    }
 
-    fn exec_draw(&mut self, hor_reg: u16, vert_reg: u16, tall: u16) {}
+    // draw an "n" pixels tall sprite from the memory location that the I index register
+    // is holding to the screen, at the horizontal X coordinate in vx and the Y coordinate in vy.
+    // All the pixels that are “on” in the sprite will flip the pixels on the screen that it is drawn to
+    // (from left to right, from most to least significant bit).
+    // If any pixels on the screen were turned “off” by this, the VF flag register is set to 1. Otherwise, it’s set to 0.
+    fn exec_dxyn(&mut self, x: u16, y: u16, n: u16) {
+        self.should_draw = true;
+
+        let mut locked_buffer = self.pixel_buffer.as_ref().lock().unwrap();
+        let frame = locked_buffer.frame_mut();
+
+        // The starting position of the sprite will wrap. Another way of saying it is that the coordinates are modulo
+        // (or binary AND) the size of the display (when counting from 0).
+        //
+        // However, the actual drawing of the sprite should not wrap. If a sprite is drawn near the edge of the screen,
+        // it should be clipped, and not wrap. The sprite should be partly drawn near the edge,
+        // and the other part should not reappear on the opposite side of the screen.
+        let vx: u16 = self.var_registers[x as usize] as u16 % 64;
+        let vy: u16 = self.var_registers[y as usize] as u16 % 32;
+
+        self.var_registers[0xF] = 0;
+
+        // how many rows tall
+        for i in 0..n {
+            // stop drawing if we reached the bottom row
+            if vy + i == DISPLAY_HEIGHT as u16 {
+                break;
+            }
+
+            let sprite_data = self.memory[(self.index_register + i) as usize];
+
+            for j in 0..8 {
+                // stop drawing if we reached the right edge
+                if vx + j == DISPLAY_WIDTH as u16 {
+                    break;
+                }
+
+                // go from most significant bit to least
+                let sprite_pixel_on = ((sprite_data >> (7 - j)) & 1) == 1;
+
+                // The frame buffer is a 1D array representing a 2D space
+                let frame_x = (vx + j) as usize;
+                let frame_y = (vy + i) as usize;
+                let mut frame_pixel_idx = frame_x + (frame_y * DISPLAY_WIDTH as usize);
+
+                // The frame buffer is of length W x L x 4. 4 because each pixel is an RGBA value,
+                // i.e each "pixel" is 4 consecutive elements in the buffer. So we must multiple our index by 4
+                // to get the correct starting index of the pixel.
+                frame_pixel_idx *= 4;
+                let display_pixel_on = frame[frame_pixel_idx] != 0;
+
+                if display_pixel_on && sprite_pixel_on {
+                    // turn pixel off (R, G, B)
+                    frame[frame_pixel_idx] = 0x00;
+                    frame[frame_pixel_idx + 1] = 0x00;
+                    frame[frame_pixel_idx + 2] = 0x00;
+                    self.var_registers[0xF] = 1;
+                } else if !display_pixel_on && sprite_pixel_on {
+                    // turn pixel on (R, G, B)
+                    frame[frame_pixel_idx] = 0xFF;
+                    frame[frame_pixel_idx + 1] = 0xFF;
+                    frame[frame_pixel_idx + 2] = 0xFF;
+                }
+            }
+        }
+    }
 }
 
 // The CHIP-8 emulator should have a built-in font, with sprite data representing the hexadecimal numbers from 0 through F.
@@ -302,7 +338,7 @@ fn load_fonts(memory: &mut [u8; 4096]) {
 
     // convention is to store fonts in memory in addresses 050 - 09F
     // 050 == 80 in decimal
-    let mut index = 80;
+    let mut index = 0x50;
 
     for val in font {
         memory[index] = val;

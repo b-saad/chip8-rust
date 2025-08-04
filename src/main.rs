@@ -1,19 +1,17 @@
 mod app;
 mod chip8;
 
+use std::fs;
 use std::sync::mpsc;
 use std::thread;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 const EMULATOR_TITLE: &str = "Chip-8";
-//
-// #[allow(dead_code)]
-// #[derive(Debug, Clone, Copy)]
-// enum UserEvent {
-//     Render,
-// }
 
 fn main() {
+    let path = "./roms/ibm-logo.ch8";
+    let rom: Vec<u8> = fs::read(path).unwrap();
+
     let (key_event_tx, key_event_rx) = mpsc::channel();
     let (frame_buffer_tx, frame_buffer_rx): (
         mpsc::Sender<std::sync::Arc<std::sync::Mutex<pixels::Pixels<'static>>>>,
@@ -38,10 +36,10 @@ fn main() {
         let frame_buffer = frame_buffer_rx.recv().unwrap();
         let mut emulator =
             chip8::Emulator::new(frame_buffer, key_event_rx, chip8::DEFAULT_CYCLE_RATE);
+
+        emulator.load_rom(rom);
         emulator.run();
     });
 
     let _ = event_loop.run_app(&mut app);
-
-    println!("DONE")
 }
