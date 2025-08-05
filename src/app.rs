@@ -95,7 +95,6 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::KeyboardInput { event, .. } => {
-                println!("key event recieved: {:?}", event);
                 if let Err(e) = self.key_event_tx.send(event) {
                     eprintln!("failed to send device event to channel: {}", e);
                 }

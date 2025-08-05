@@ -1,6 +1,7 @@
 mod app;
 mod chip8;
 
+use clap::Parser;
 use std::fs;
 use std::sync::mpsc;
 use std::thread;
@@ -8,9 +9,29 @@ use winit::event_loop::{ControlFlow, EventLoop};
 
 const EMULATOR_TITLE: &str = "Chip-8";
 
+/// A Chip-8 Emulator
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Path to the Chip-8 ROM
+    #[arg(long, required = true)]
+    rom: String,
+
+    /// Original behaviour of the shift instruction (default: true)
+    #[arg(long, default_value_t = true)]
+    shift_instruction_original: bool,
+
+    /// Original behaviour of jump with offset instruction (default: true)
+    #[arg(long, default_value_t = true)]
+    jump_with_offset_original: bool,
+
+    /// Original behaviour of store and load instruction (default: false)
+    #[arg(long, default_value_t = false)]
+    store_and_load_original: bool,
+}
+
 fn main() {
-    let path = "./roms/ibm-logo.ch8";
-    let rom: Vec<u8> = fs::read(path).unwrap();
+    let args = Args::parse();
 
     let (key_event_tx, key_event_rx) = mpsc::channel();
     let (frame_buffer_tx, frame_buffer_rx): (
@@ -33,9 +54,17 @@ fn main() {
     event_loop.set_control_flow(ControlFlow::Poll);
 
     thread::spawn(move || {
+        let rom: Vec<u8> = fs::read(args.rom).unwrap();
+
         let frame_buffer = frame_buffer_rx.recv().unwrap();
-        let mut emulator =
-            chip8::Emulator::new(frame_buffer, key_event_rx, chip8::DEFAULT_CYCLE_RATE);
+        let mut emulator = chip8::Emulator::new(
+            frame_buffer,
+            key_event_rx,
+            chip8::DEFAULT_CYCLE_RATE,
+            args.shift_instruction_original,
+            args.jump_with_offset_original,
+            args.store_and_load_original,
+        );
 
         emulator.load_rom(rom);
         emulator.run();
