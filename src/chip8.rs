@@ -429,12 +429,12 @@ impl Emulator {
     fn exec_8xy5(&mut self, x: u16, y: u16) {
         let vx = self.var_registers[x as usize];
         let vy = self.var_registers[y as usize];
-        let (result, _) = vx.overflowing_sub(vy);
+        let (result, overflow) = vx.overflowing_sub(vy);
         self.var_registers[x as usize] = result;
-        if vx > vy {
-            self.var_registers[0xf] = 1;
-        } else if vy > vx {
+        if overflow {
             self.var_registers[0xf] = 0;
+        } else {
+            self.var_registers[0xf] = 1;
         }
     }
 
@@ -458,12 +458,12 @@ impl Emulator {
     fn exec_8xy7(&mut self, x: u16, y: u16) {
         let vx = self.var_registers[x as usize];
         let vy = self.var_registers[y as usize];
-        let (result, _) = vy.overflowing_sub(vx);
+        let (result, overflow) = vy.overflowing_sub(vx);
         self.var_registers[x as usize] = result;
-        if vy > vx {
-            self.var_registers[0xf] = 1;
-        } else if vx > vy {
+        if overflow {
             self.var_registers[0xf] = 0;
+        } else {
+            self.var_registers[0xf] = 1;
         }
     }
 
@@ -478,7 +478,7 @@ impl Emulator {
         }
         let new_val = val << 1;
         self.var_registers[x as usize] = new_val;
-        self.var_registers[0xf] = val & 0b1000_0000;
+        self.var_registers[0xf] = (val & 0b1000_0000) >> 7;
     }
 
     // skip one instruction if the values in vx and vy are NOT equal
@@ -652,7 +652,7 @@ impl Emulator {
     // starting with the one that’s stored in index_register
     fn exec_fx55(&mut self, x: u16) {
         for i in 0..=x {
-            let val = self.var_registers[(x + i) as usize];
+            let val = self.var_registers[i as usize];
             let address: usize = (self.index_register + i) as usize;
             self.memory[address] = val;
         }
@@ -667,9 +667,8 @@ impl Emulator {
     // loads them into the variable registers instead.
     fn exec_fx65(&mut self, x: u16) {
         for i in 0..=x {
-            let reg = (x + i) as usize;
             let address: usize = (self.index_register + i) as usize;
-            self.var_registers[reg] = self.memory[address];
+            self.var_registers[i as usize] = self.memory[address];
         }
 
         if self.op_store_and_load_original {

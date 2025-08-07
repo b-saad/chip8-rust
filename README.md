@@ -7,6 +7,11 @@ A Chip-8 compiler written in Rust. Compiles only for desktop platforms.
 ### Fedora
 - `alsa-lib-devel` for audio, `sudo dnf install alsa-lib-devel`
 
+
+## Test roms
+From https://github.com/Timendus/chip8-test-suite
+- ALl roms rely on original behaviour for "ambiguous" instructions
+
 ## Usage
 ```
 A Chip-8 Emulator
