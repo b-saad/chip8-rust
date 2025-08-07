@@ -20,12 +20,12 @@ struct Args {
     #[arg(long, required = true)]
     rom: String,
 
-    /// Original behaviour of the shift instruction (default: true)
-    #[arg(long, default_value_t = true)]
+    /// Original behaviour of the shift instruction (default: false)
+    #[arg(long, default_value_t = false)]
     shift_instruction_original: bool,
 
-    /// Original behaviour of jump with offset instruction (default: true)
-    #[arg(long, default_value_t = true)]
+    /// Original behaviour of jump with offset instruction (default: false)
+    #[arg(long, default_value_t = false)]
     jump_with_offset_original: bool,
 
     /// Original behaviour of store and load instruction (default: false)
@@ -62,6 +62,7 @@ fn main() {
 
     thread::spawn(move || {
         let rom: Vec<u8> = fs::read(args.rom).unwrap();
+
         let audio_sink = rodio::Sink::connect_new(&audio_output.mixer());
         let beep_data: Vec<u8> = BEEP_SOUND_DATA.to_vec();
 

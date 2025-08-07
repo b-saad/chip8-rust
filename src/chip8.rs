@@ -77,8 +77,6 @@ pub struct Emulator {
     // keep track of which keys are currently pressed, each key is a single hex character
     pressed_keys: HashSet<u16>,
 
-    // // we hold the output stream because it must live the same duration as the sink
-    // output_stream: OutputStream,
     audio_sink: rodio::Sink,
 
     audio_sink_initialized: bool,
@@ -94,7 +92,6 @@ impl Emulator {
         op_shift_original: bool,
         op_jump_with_offset_original: bool,
         op_store_and_load_original: bool,
-        // output_stream: OutputStream,
         audio_sink: rodio::Sink,
         beep_audio_bytes: Vec<u8>,
     ) -> Self {
@@ -119,7 +116,6 @@ impl Emulator {
             op_jump_with_offset_original: op_jump_with_offset_original,
             op_store_and_load_original: op_store_and_load_original,
             pressed_keys: HashSet::new(),
-            // output_stream: output_stream,
             audio_sink: audio_sink,
             audio_sink_initialized: false,
             beep_audio_bytes: beep_audio_bytes,
@@ -390,7 +386,8 @@ impl Emulator {
 
     // add value nn to vx reg
     fn exec_7xnn(&mut self, x: u16, nn: u16) {
-        self.var_registers[x as usize] += nn as u8;
+        let val: u8 = self.var_registers[x as usize].wrapping_add(nn as u8);
+        self.var_registers[x as usize] = val;
     }
 
     // set vx to value of vy
@@ -416,12 +413,12 @@ impl Emulator {
     // set vx to the sume of vx and vy
     // if it overflows, set vf to 1 otherwise set it to 0
     fn exec_8xy4(&mut self, x: u16, y: u16) {
-        let vx = self.var_registers[x as usize] as u16;
-        let vy = self.var_registers[y as usize] as u16;
-        let result = vx + vy;
-        self.var_registers[x as usize] = result as u8;
+        let vx = self.var_registers[x as usize];
+        let vy = self.var_registers[y as usize];
+        let (result, overflow) = vx.overflowing_add(vy);
+        self.var_registers[x as usize] = result;
         self.var_registers[0xf] = 0;
-        if result > 255 {
+        if overflow {
             self.var_registers[0xf] = 1;
         }
     }
@@ -430,10 +427,10 @@ impl Emulator {
     // If the minuend (the first operand) is larger than the subtrahend (second operand),
     // VF will be set to 1. If the subtrahend is larger, and we “underflow” the result, VF is set to 0
     fn exec_8xy5(&mut self, x: u16, y: u16) {
-        let vx = self.var_registers[x as usize] as u16;
-        let vy = self.var_registers[y as usize] as u16;
-        let result = vx - vy;
-        self.var_registers[x as usize] = result as u8;
+        let vx = self.var_registers[x as usize];
+        let vy = self.var_registers[y as usize];
+        let (result, _) = vx.overflowing_sub(vy);
+        self.var_registers[x as usize] = result;
         if vx > vy {
             self.var_registers[0xf] = 1;
         } else if vy > vx {
@@ -459,10 +456,10 @@ impl Emulator {
     // If the minuend (the first operand) is larger than the subtrahend (second operand),
     // VF will be set to 1. If the subtrahend is larger, and we “underflow” the result, VF is set to 0
     fn exec_8xy7(&mut self, x: u16, y: u16) {
-        let vx = self.var_registers[x as usize] as u16;
-        let vy = self.var_registers[y as usize] as u16;
-        let result = vy - vx;
-        self.var_registers[x as usize] = result as u8;
+        let vx = self.var_registers[x as usize];
+        let vy = self.var_registers[y as usize];
+        let (result, _) = vy.overflowing_sub(vx);
+        self.var_registers[x as usize] = result;
         if vy > vx {
             self.var_registers[0xf] = 1;
         } else if vx > vy {
@@ -644,7 +641,7 @@ impl Emulator {
         let three_digit_vx = format!("{:03}", vx);
         let radix: u32 = 10;
         for (idx, c) in three_digit_vx.chars().enumerate() {
-            let address = self.var_registers[self.index_register as usize] + idx as u8;
+            let address = self.index_register + idx as u16;
             let digit: u8 = c.to_digit(radix).unwrap() as u8;
             self.memory[address as usize] = digit;
         }
