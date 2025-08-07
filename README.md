@@ -2,6 +2,11 @@
 
 A Chip-8 compiler written in Rust. Compiles only for desktop platforms.
 
+## Dependencies
+
+### Fedora
+- `alsa-lib-devel` for audio, `sudo dnf install alsa-lib-devel`
+
 ## Usage
 ```
 A Chip-8 Emulator

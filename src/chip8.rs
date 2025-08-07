@@ -1,6 +1,8 @@
 use pixels::Pixels;
 use rand::Rng;
+use rodio::Decoder;
 use std::collections::HashSet;
+use std::io::Cursor;
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -10,17 +12,18 @@ pub const DEFAULT_CYCLE_RATE: u16 = 700;
 pub const DISPLAY_WIDTH: u8 = 64;
 pub const DISPLAY_HEIGHT: u8 = 32;
 
-// 4KB of ram
-const RAM_SIZE: usize = 4096;
-
 // convention is to store fonts in memory in addresses 050 - 09F
 const FONT_PC: usize = 0x50;
 
-// CHIP-8 programs start at address 0x200 (512 in decimal)
-const PC_START: u16 = 512;
 const LOW_4_BITS_MASK: u16 = 0x000F;
 const LOW_8_BITS_MASK: u16 = 0x00FF;
 const LOW_12_BITS_MASK: u16 = 0x0FFF;
+
+// CHIP-8 programs start at address 0x200 (512 in decimal)
+const PC_START: u16 = 512;
+
+// 4KB of ram
+const RAM_SIZE: usize = 4096;
 
 pub struct Emulator {
     key_event_rx: mpsc::Receiver<KeyEvent>,
@@ -73,6 +76,14 @@ pub struct Emulator {
 
     // keep track of which keys are currently pressed, each key is a single hex character
     pressed_keys: HashSet<u16>,
+
+    // // we hold the output stream because it must live the same duration as the sink
+    // output_stream: OutputStream,
+    audio_sink: rodio::Sink,
+
+    audio_sink_initialized: bool,
+
+    beep_audio_bytes: Vec<u8>,
 }
 
 impl Emulator {
@@ -83,9 +94,14 @@ impl Emulator {
         op_shift_original: bool,
         op_jump_with_offset_original: bool,
         op_store_and_load_original: bool,
+        // output_stream: OutputStream,
+        audio_sink: rodio::Sink,
+        beep_audio_bytes: Vec<u8>,
     ) -> Self {
         let mut mem: [u8; RAM_SIZE] = [0; RAM_SIZE];
         load_fonts(&mut mem);
+
+        // let sink = rodio::Sink::connect_new(&output_stream.mixer());
 
         return Self {
             key_event_rx: key_event_rx,
@@ -103,6 +119,10 @@ impl Emulator {
             op_jump_with_offset_original: op_jump_with_offset_original,
             op_store_and_load_original: op_store_and_load_original,
             pressed_keys: HashSet::new(),
+            // output_stream: output_stream,
+            audio_sink: audio_sink,
+            audio_sink_initialized: false,
+            beep_audio_bytes: beep_audio_bytes,
         };
     }
 
@@ -165,8 +185,17 @@ impl Emulator {
 
     fn update_sound_timer(&mut self) {
         if self.sound_timer > 0 {
+            if !self.audio_sink_initialized {
+                let cursor = Cursor::new(self.beep_audio_bytes.clone());
+                let source = Decoder::new_looped(cursor).unwrap();
+                self.audio_sink.append(source);
+                self.audio_sink_initialized = true;
+            }
+
             self.sound_timer -= 1;
-            // TODO: BEEP
+            self.audio_sink.play();
+        } else {
+            self.audio_sink.pause();
         }
     }
 

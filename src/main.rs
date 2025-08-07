@@ -2,12 +2,15 @@ mod app;
 mod chip8;
 
 use clap::Parser;
+use rodio::OutputStreamBuilder;
 use std::fs;
 use std::sync::mpsc;
 use std::thread;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 const EMULATOR_TITLE: &str = "Chip-8";
+
+static BEEP_SOUND_DATA: &[u8] = include_bytes!("../assets/beep_short.mp3");
 
 /// A Chip-8 Emulator
 #[derive(Parser, Debug)]
@@ -33,6 +36,10 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
+    // default output stream
+    let audio_output =
+        OutputStreamBuilder::open_default_stream().expect("open default audio stream");
+
     let (key_event_tx, key_event_rx) = mpsc::channel();
     let (frame_buffer_tx, frame_buffer_rx): (
         mpsc::Sender<std::sync::Arc<std::sync::Mutex<pixels::Pixels<'static>>>>,
@@ -55,6 +62,8 @@ fn main() {
 
     thread::spawn(move || {
         let rom: Vec<u8> = fs::read(args.rom).unwrap();
+        let audio_sink = rodio::Sink::connect_new(&audio_output.mixer());
+        let beep_data: Vec<u8> = BEEP_SOUND_DATA.to_vec();
 
         let frame_buffer = frame_buffer_rx.recv().unwrap();
         let mut emulator = chip8::Emulator::new(
@@ -64,6 +73,8 @@ fn main() {
             args.shift_instruction_original,
             args.jump_with_offset_original,
             args.store_and_load_original,
+            audio_sink,
+            beep_data,
         );
 
         emulator.load_rom(rom);
