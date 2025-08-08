@@ -2,6 +2,8 @@
 
 A Chip-8 compiler written in Rust. Aims to accurately emulate a COSMAC-VIP. Compiles only for desktop platforms.
 
+Note: while test roms all mostly pass, games don't seem to run
+
 ## Dependencies
 
 ### Fedora
