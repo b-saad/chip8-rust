@@ -75,7 +75,7 @@ pub struct Emulator {
     op_store_and_load_original: bool,
 
     // keep track of which keys are currently pressed, each key is a single hex character
-    pressed_keys: HashSet<u16>,
+    pressed_keys: HashSet<u8>,
 
     audio_sink: rodio::Sink,
 
@@ -212,7 +212,7 @@ impl Emulator {
             Err(_) => return, // no event in channel
         };
 
-        let chip8_key: u16 = match event.physical_key {
+        let chip8_key: u8 = match event.physical_key {
             winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Digit1) => 0x1,
             winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Digit2) => 0x2,
             winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Digit3) => 0x3,
@@ -396,18 +396,24 @@ impl Emulator {
     }
 
     // set vx to the binary OR of vx and vy
+    // cosmac vip also resets VF
     fn exec_8xy1(&mut self, x: u16, y: u16) {
         self.var_registers[x as usize] |= self.var_registers[y as usize];
+        self.var_registers[0xf] = 0;
     }
 
     // set vx to the binary AND of vx and vy
+    // cosmac vip also resets VF
     fn exec_8xy2(&mut self, x: u16, y: u16) {
         self.var_registers[x as usize] &= self.var_registers[y as usize];
+        self.var_registers[0xf] = 0;
     }
 
     // set vx to the binary XOR of vx and vy
+    // cosmac vip also resets VF
     fn exec_8xy3(&mut self, x: u16, y: u16) {
         self.var_registers[x as usize] ^= self.var_registers[y as usize];
+        self.var_registers[0xf] = 0;
     }
 
     // set vx to the sume of vx and vy
@@ -582,14 +588,16 @@ impl Emulator {
 
     // skip one instruction (increment PC by 2) if the key corresponding to the value in vx is pressed
     fn exec_ex9e(&mut self, x: u16) {
-        if self.pressed_keys.contains(&x) {
+        let key = self.var_registers[x as usize];
+        if self.pressed_keys.contains(&key) {
             self.pc += 2;
         }
     }
 
     // skip one instruction (increment PC by 2) if the key corresponding to the value in vx NOT is pressed
     fn exec_exa1(&mut self, x: u16) {
-        if !self.pressed_keys.contains(&x) {
+        let key = self.var_registers[x as usize];
+        if !self.pressed_keys.contains(&key) {
             self.pc += 2;
         }
     }
@@ -619,7 +627,7 @@ impl Emulator {
     // PC is decremented here since it is incremented in the fetch phase
     fn exec_fx0a(&mut self, x: u16) {
         if let Some(key) = self.pressed_keys.iter().next() {
-            self.var_registers[x as usize] = *key as u8;
+            self.var_registers[x as usize] = *key;
         } else {
             self.pc -= 2;
         }

@@ -1,6 +1,6 @@
 # Chip-8
 
-A Chip-8 compiler written in Rust. Compiles only for desktop platforms.
+A Chip-8 compiler written in Rust. Aims to accurately emulate a COSMAC-VIP. Compiles only for desktop platforms.
 
 ## Dependencies
 
@@ -13,6 +13,7 @@ From https://github.com/Timendus/chip8-test-suite
 - ALl roms rely on original behaviour for "ambiguous" instructions
 
 ## Usage
+Note to faithfully emulate a COSMAC-VIP you must use all original behaviours i.e set all flags
 ```
 A Chip-8 Emulator
 
@@ -20,8 +21,8 @@ Usage: chip8-rust [OPTIONS] --rom <ROM>
 
 Options:
       --rom <ROM>                   Path to the Chip-8 ROM
-      --shift-instruction-original  Original behaviour of the shift instruction (default: true)
-      --jump-with-offset-original   Original behaviour of jump with offset instruction (default: true)
+      --shift-instruction-original  Original behaviour of the shift instruction (default: false)
+      --jump-with-offset-original   Original behaviour of jump with offset instruction (default: false)
       --store-and-load-original     Original behaviour of store and load instruction (default: false)
   -h, --help                        Print help
   -V, --version                     Print version
