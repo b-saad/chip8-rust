@@ -10,8 +10,6 @@ use winit::event_loop::{ControlFlow, EventLoop};
 
 const EMULATOR_TITLE: &str = "Chip-8";
 
-static BEEP_SOUND_DATA: &[u8] = include_bytes!("../assets/beep_short.mp3");
-
 /// A Chip-8 Emulator
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -64,7 +62,6 @@ fn main() {
         let rom: Vec<u8> = fs::read(args.rom).unwrap();
 
         let audio_sink = rodio::Sink::connect_new(&audio_output.mixer());
-        let beep_data: Vec<u8> = BEEP_SOUND_DATA.to_vec();
 
         let frame_buffer = frame_buffer_rx.recv().unwrap();
         let mut emulator = chip8::Emulator::new(
@@ -75,7 +72,6 @@ fn main() {
             args.jump_with_offset_original,
             args.store_and_load_original,
             audio_sink,
-            beep_data,
         );
 
         emulator.load_rom(rom);

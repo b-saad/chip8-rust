@@ -1,8 +1,7 @@
 use pixels::Pixels;
 use rand::Rng;
-use rodio::Decoder;
+use rodio::source::SineWave;
 use std::collections::HashSet;
-use std::io::Cursor;
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -80,8 +79,6 @@ pub struct Emulator {
     audio_sink: rodio::Sink,
 
     audio_sink_initialized: bool,
-
-    beep_audio_bytes: Vec<u8>,
 }
 
 impl Emulator {
@@ -93,12 +90,9 @@ impl Emulator {
         op_jump_with_offset_original: bool,
         op_store_and_load_original: bool,
         audio_sink: rodio::Sink,
-        beep_audio_bytes: Vec<u8>,
     ) -> Self {
         let mut mem: [u8; RAM_SIZE] = [0; RAM_SIZE];
         load_fonts(&mut mem);
-
-        // let sink = rodio::Sink::connect_new(&output_stream.mixer());
 
         return Self {
             key_event_rx: key_event_rx,
@@ -118,7 +112,6 @@ impl Emulator {
             pressed_keys: HashSet::new(),
             audio_sink: audio_sink,
             audio_sink_initialized: false,
-            beep_audio_bytes: beep_audio_bytes,
         };
     }
 
@@ -182,8 +175,7 @@ impl Emulator {
     fn update_sound_timer(&mut self) {
         if self.sound_timer > 0 {
             if !self.audio_sink_initialized {
-                let cursor = Cursor::new(self.beep_audio_bytes.clone());
-                let source = Decoder::new_looped(cursor).unwrap();
+                let source = SineWave::new(440.0);
                 self.audio_sink.append(source);
                 self.audio_sink_initialized = true;
             }

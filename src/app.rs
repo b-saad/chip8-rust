@@ -27,7 +27,7 @@ impl App {
             height: height,
             window_title: window_title,
             key_event_tx: key_event_tx,
-            pixel_buffer_tx: pixel_buffer_tx, 
+            pixel_buffer_tx: pixel_buffer_tx,
             pixel_buffer: None,
         }
     }
@@ -38,16 +38,14 @@ impl ApplicationHandler for App {
     // "It’s recommended that applications should only initialize their graphics context and create a window after they have received
     // their first Resumed event. Some systems (specifically Android) won’t allow applications to create a render surface until they are resumed."
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // if self.window.is_some() {
-        //     return;
-        // }
-
-        let window_attributes = Window::default_attributes()
-            .with_title(self.window_title.clone())
-            .with_inner_size(winit::dpi::PhysicalSize::new(self.width, self.height));
+        let window_attributes = Window::default_attributes().with_title(self.window_title.clone());
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
 
-        let surface_texture = SurfaceTexture::new(self.width, self.height, window.clone());
+        let surface_texture = SurfaceTexture::new(
+            window.inner_size().width,
+            window.inner_size().height,
+            window.clone(),
+        );
         let pixels: Pixels<'static> =
             Pixels::new(self.width, self.height, surface_texture).unwrap();
 
@@ -58,10 +56,6 @@ impl ApplicationHandler for App {
             eprintln!("failed to send pixel_buffer to channel: {}", e);
         }
     }
-
-    // fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: crate::UserEvent) {
-    //     println!("User event received: {event:?}");
-    // }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
@@ -102,5 +96,4 @@ impl ApplicationHandler for App {
             _ => (),
         }
     }
-
 }
