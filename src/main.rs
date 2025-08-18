@@ -18,6 +18,10 @@ struct Args {
     #[arg(long, required = true)]
     rom: String,
 
+    /// How many CPU cycles should be completed per second
+    #[arg(long, default_value_t = chip8::DEFAULT_CYCLE_RATE)]
+    cycle_rate: u16,
+
     /// Original behaviour of the shift instruction (default: false)
     #[arg(long, default_value_t = false)]
     shift_instruction_original: bool,
@@ -67,7 +71,7 @@ fn main() {
         let mut emulator = chip8::Emulator::new(
             frame_buffer,
             key_event_rx,
-            chip8::DEFAULT_CYCLE_RATE,
+            args.cycle_rate,
             args.shift_instruction_original,
             args.jump_with_offset_original,
             args.store_and_load_original,
